@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Progress Report Generator</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS (xlsx) CDN for Excel file generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+    <style>
+        /* Custom styles for a better look */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 15px; /* Rounded corners */
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 1000px; /* Increased max-width */
+        }
+        input[type="text"], input[type="number"] { /* Removed textarea as it's no longer used */
+            border: 1px solid #d1d5db;
+            padding: 10px 15px;
+            border-radius: 8px;
+            width: 100%;
+            box-sizing: border-box;
+            transition: all 0.2s ease-in-out;
+        }
+        input[type="text"]:focus, input[type="number"]:focus {
+            border-color: #4f46e5;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.25);
+        }
+        .btn {
+            padding: 12px 25px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .btn-primary {
+            background-color: #4f46e5;
+            color: #ffffff;
+        }
+        .btn-primary:hover {
+            background-color: #4338ca;
+        }
+        .btn-secondary {
+            background-color: #e5e7eb;
+            color: #374151;
+        }
+        .btn-secondary:hover {
+            background-color: #d1d5db;
+        }
+        .btn-danger {
+            background-color: #ef4444;
+            color: #ffffff;
+        }
+        .btn-danger:hover {
+            background-color: #dc2626;
+        }
+        .remove-btn { /* Unified class for remove buttons */
+            background-color: #ef4444;
+            color: #ffffff;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            font-size: 0.875rem; /* text-sm */
+            line-height: 1.25rem; /* leading-5 */
+        }
+        .remove-btn:hover {
+            background-color: #dc2626;
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            visibility: hidden;
+            opacity: 0;
+            transition: visibility 0s, opacity 0.3s linear;
+        }
+        .loading-overlay.visible {
+            visibility: visible;
+            opacity: 1;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4f46e5;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Specific styles for student and subject blocks */
+        .student-section {
+            border: 2px solid #a78bfa; /* Purple border for student block */
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+            background-color: #f5f3ff; /* Light purple background */
+            position: relative;
+        }
+        .student-section h3 {
+            font-size: 1.25rem; /* text-xl */
+            font-weight: 700; /* font-bold */
+            color: #6d28d9; /* Deep purple */
+            margin-bottom: 16px;
+        }
+        .student-remove-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background-color: #ef4444;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .student-remove-btn:hover {
+            background-color: #dc2626;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+
+    <div class="container">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">Progress Report</h1>
+        <p class="text-gray-600 mb-6 text-center">Add student details and their grades for subjects - Telugu, Hindi, Urdu, English, Maths, Science, Social, Computer & GK. Download all data as an Excel file! 📚</p>
+
+        <form id="dataForm" class="space-y-6">
+            <div id="studentSectionsContainer" class="space-y-6">
+                <!-- Student sections will be dynamically added here by JavaScript -->
+            </div>
+
+            <div class="flex justify-between items-center mt-6 p-4 border-t border-gray-200">
+                <button type="button" id="addNewStudentBtn" class="btn btn-secondary flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+                    </svg>
+                    Add New Student
+                </button>
+                <button type="submit" id="downloadBtn" class="btn btn-primary flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                    Download Excel File
+                </button>
+            </div>
+        </form>
+
+        <div id="messageBox" class="mt-6 p-4 bg-blue-100 text-blue-800 rounded-lg hidden" role="alert">
+            <!-- Messages will appear here -->
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="spinner"></div>
+    </div>
+
+    <script>
+        // Global variables for Firebase configuration (will be populated by the environment)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // Fixed list of subjects
+        const FIXED_SUBJECTS = ['Telugu', 'Hindi', 'Urdu', 'English', 'Maths', 'Science', 'Social', 'Computer', 'GK'];
+        // Subjects to be EXCLUDED from total and percentage calculation
+        const EXCLUDED_SUBJECTS_FROM_TOTAL = ['Computer', 'GK'];
+
+        const MAX_SCORE_PER_SUBJECT = 100; // Assuming each subject is out of 100 marks
+        
+        // Calculate the maximum possible total score only for subjects that are included in the total
+        const subjectsIncludedInTotal = FIXED_SUBJECTS.filter(subject => !EXCLUDED_SUBJECTS_FROM_TOTAL.includes(subject));
+        const MAX_POSSIBLE_TOTAL_SCORE = subjectsIncludedInTotal.length * MAX_SCORE_PER_SUBJECT;
+
+        // Function to show a message in the message box
+        function showMessage(message, type = 'info') {
+            const messageBox = document.getElementById('messageBox');
+            messageBox.textContent = message;
+            messageBox.classList.remove('hidden', 'bg-red-100', 'text-red-800', 'bg-green-100', 'text-green-800', 'bg-blue-100', 'text-blue-800');
+            if (type === 'error') {
+                messageBox.classList.add('bg-red-100', 'text-red-800');
+            } else if (type === 'success') {
+                messageBox.classList.add('bg-green-100', 'text-green-800');
+            } else { // info
+                messageBox.classList.add('bg-blue-100', 'text-blue-800');
+            }
+            messageBox.classList.remove('hidden');
+            setTimeout(() => {
+                messageBox.classList.add('hidden');
+            }, 5000); // Hide after 5 seconds
+        }
+
+        // Function to show/hide loading spinner
+        function showLoading(show) {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            if (show) {
+                loadingOverlay.classList.add('visible');
+            } else {
+                loadingOverlay.classList.remove('visible');
+            }
+        }
+
+        let studentCount = 0; // Tracks the number of student blocks - changed to 0
+
+        // Function to create HTML for a single fixed subject grade input
+        function createFixedSubjectInputHtml(studentId, subjectName) {
+            const lowerCaseSubjectName = subjectName.toLowerCase().replace(/\s/g, ''); // For unique IDs and names
+            return `
+                <div>
+                    <label for="${lowerCaseSubjectName}-grade-${studentId}" class="block text-sm font-medium text-gray-700 mb-1">${subjectName}</label>
+                    <input type="text" id="${lowerCaseSubjectName}-grade-${studentId}" name="${lowerCaseSubjectName}Grade" class="form-input" placeholder="Enter ${subjectName} Score">
+                </div>
+            `;
+        }
+
+        // Function to create a new student block HTML string
+        function createStudentBlockHtml(studentId) {
+            let subjectsHtml = '';
+            // Loop through fixed subjects to create inputs for each
+            FIXED_SUBJECTS.forEach(subject => {
+                subjectsHtml += createFixedSubjectInputHtml(studentId, subject);
+            });
+
+            return `
+                <div class="student-section" data-student-id="${studentId}">
+                    <button type="button" class="student-remove-btn" onclick="removeStudentBlock(this)">Remove Student</button>
+                    <h3 class="text-xl font-bold text-purple-700 mb-4">Student Details</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div class="md:col-span-2">
+                            <label for="studentName-${studentId}" class="block text-sm font-medium text-gray-700 mb-1">Student Name</label>
+                            <input type="text" id="studentName-${studentId}" name="studentName" class="form-input" placeholder="Enter Student Name" required>
+                        </div>
+                        <div>
+                            <label for="rollNo-${studentId}" class="block text-sm font-medium text-gray-700 mb-1">Roll No.</label>
+                            <input type="text" id="rollNo-${studentId}" name="rollNo" class="form-input" placeholder="Enter Roll No.">
+                        </div>
+                        <div>
+                            <label for="class-${studentId}" class="block text-sm font-medium text-gray-700 mb-1">Class</label>
+                            <input type="text" id="class-${studentId}" name="class" class="form-input" placeholder="Enter Class">
+                        </div>
+                    </div>
+
+                    <h4 class="text-lg font-semibold text-purple-600 mb-3">Subject Grades</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 student-subjects-container">
+                        ${subjectsHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Function to add a new student block
+        function addNewStudentBlock() {
+            const studentSectionsContainer = document.getElementById('studentSectionsContainer');
+            const newStudentHtml = createStudentBlockHtml(studentCount);
+            studentSectionsContainer.insertAdjacentHTML('beforeend', newStudentHtml);
+            studentCount++;
+
+            // Update visibility of student remove buttons
+            updateStudentRemoveButtons();
+        }
+
+        // Function to remove an entire student block
+        function removeStudentBlock(button) {
+            const studentBlockToRemove = button.closest('.student-section');
+            if (studentBlockToRemove) {
+                studentBlockToRemove.remove();
+                // Update visibility of student remove buttons
+                updateStudentRemoveButtons();
+            }
+        }
+
+        // Helper to update visibility of student remove buttons
+        function updateStudentRemoveButtons() {
+            const studentBlocks = document.querySelectorAll('.student-section');
+            if (studentBlocks.length <= 1) {
+                studentBlocks.forEach(block => {
+                    const removeBtn = block.querySelector('.student-remove-btn');
+                    if (removeBtn) removeBtn.classList.add('hidden');
+                });
+            } else {
+                studentBlocks.forEach(block => {
+                    const removeBtn = block.querySelector('.student-remove-btn');
+                    if (removeBtn) removeBtn.classList.remove('hidden');
+                });
+            }
+        }
+
+        // Event listener for adding a new student
+        document.getElementById('addNewStudentBtn').addEventListener('click', addNewStudentBlock);
+
+        // Event listener for form submission (download Excel)
+        document.getElementById('dataForm').addEventListener('submit', function(event) {
+            event.preventDefault(); // Prevent default form submission
+            showLoading(true);
+
+            const allStudentsWideFormat = []; // This will hold data for the Excel, one object per student (wide format)
+
+            const studentSections = document.querySelectorAll('.student-section');
+
+            if (studentSections.length === 0) {
+                showMessage('Please add at least one student entry.', 'error');
+                showLoading(false);
+                return;
+            }
+
+            // Iterate through each student block
+            for (const studentBlock of studentSections) {
+                const studentNameInput = studentBlock.querySelector('input[name="studentName"]');
+                const rollNoInput = studentBlock.querySelector('input[name="rollNo"]');
+                const classInput = studentBlock.querySelector('input[name="class"]');
+
+                // Basic validation for student name
+                if (!studentNameInput.value.trim()) {
+                    showMessage('Student Name is required for all student entries.', 'error');
+                    showLoading(false);
+                    return; // Stop processing on first error
+                }
+
+                const studentRecord = {
+                    'Student Name': studentNameInput.value.trim(),
+                    'Roll No.': rollNoInput.value.trim(),
+                    'Class': classInput.value.trim()
+                };
+
+                let totalScore = 0;
+
+                // Collect grades for fixed subjects and calculate total score
+                FIXED_SUBJECTS.forEach(subject => {
+                    const lowerCaseSubjectName = subject.toLowerCase().replace(/\s/g, '');
+                    const gradeInput = studentBlock.querySelector(`input[name="${lowerCaseSubjectName}Grade"]`);
+                    const gradeValue = gradeInput ? parseFloat(gradeInput.value.trim()) : 0; // Convert to number
+
+                    // Only add to total score if it's a valid number AND not an excluded subject
+                    if (!isNaN(gradeValue) && !EXCLUDED_SUBJECTS_FROM_TOTAL.includes(subject)) {
+                        totalScore += gradeValue;
+                    }
+
+                    // Changed the key for Excel output to just the subject name
+                    studentRecord[`${subject}`] = gradeInput ? gradeInput.value.trim() : '';
+                });
+
+                // Calculate percentage
+                const percentage = (MAX_POSSIBLE_TOTAL_SCORE > 0) ? ((totalScore / MAX_POSSIBLE_TOTAL_SCORE) * 100).toFixed(2) : '0.00';
+
+                // Add Total Score and Percentage to the studentRecord
+                studentRecord['Total'] = totalScore; // Changed from 'Total Score' to 'Total'
+                studentRecord['Percentage'] = percentage + '%'; // Changed from 'Percentage' to 'Percentage'
+
+                allStudentsWideFormat.push(studentRecord);
+            }
+
+            if (allStudentsWideFormat.length === 0) {
+                showMessage('No data to download. Please add student entries.', 'error');
+                showLoading(false);
+                return;
+            }
+
+            // Create a new workbook and worksheet from the wide-format data
+            const workbook = XLSX.utils.book_new();
+            const worksheet = XLSX.utils.json_to_sheet(allStudentsWideFormat);
+
+            // Add the worksheet to the workbook
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Progress_Report_Fixed_Subjects');
+
+            // Generate a binary string from the workbook
+            const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+
+            // Create a Blob from the buffer and trigger download
+            const data = new Blob([excelBuffer], { type: 'application/octet-stream' });
+            const url = URL.createObjectURL(data);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'progress_report_fixed_subjects.xlsx'; // New filename
+            document.body.appendChild(a);
+            a.click();
+
+            // Clean up by revoking the object URL
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showMessage('Progress Report Excel file downloaded successfully! 🎉', 'success');
+            showLoading(false);
+        });
+
+        // Initialize: Ensure the first student block is added on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            addNewStudentBlock(); // This adds the very first student block
+            updateStudentRemoveButtons();
+        });
+    </script>
+</body>
+</html>
